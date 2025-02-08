@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kipra Homes Chat Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: calc(100vh - 180px);
+            overflow-y: auto;
+        }
+        .message {
+            max-width: 80%;
+            margin: 10px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        .bot-message {
+            background-color: #f5f5f5;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        .source-link {
+            font-size: 0.8em;
+            color: #2196f3;
+            text-decoration: underline;
+        }
+        .typing-indicator {
+            display: none;
+            padding: 15px;
+        }
+        .typing-indicator span {
+            height: 10px;
+            width: 10px;
+            background-color: #90a4ae;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-lg">
+            <!-- Header -->
+            <div class="bg-blue-600 text-white p-4 rounded-t-lg">
+                <h1 class="text-xl font-bold">Kipra Homes Chat Assistant</h1>
+                <p class="text-sm">Ask me anything about properties and real estate in Cyprus</p>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="chat-container p-4" id="chatContainer">
+                <!-- Welcome Message -->
+                <div class="message bot-message">
+                    <p>👋 Hello! I'm your Kipra Homes assistant. I can help you find properties and answer questions about real estate in Cyprus. How can I assist you today?</p>
+                </div>
+                <!-- Typing Indicator -->
+                <div class="typing-indicator bot-message" id="typingIndicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="border-t p-4">
+                <div class="flex space-x-4">
+                    <input type="text" id="userInput" 
+                           class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Type your message here..."
+                           onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button onclick="sendMessage()" 
+                            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isInitialized = false;
+
+        async function initializeChatbot() {
+            try {
+                const response = await fetch('/initialize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    isInitialized = true;
+                }
+            } catch (error) {
+                console.error('Error initializing chatbot:', error);
+            }
+        }
+
+        function addMessage(message, isUser = false) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            if (isUser) {
+                messageDiv.textContent = message;
+            } else {
+                // Split response and sources if they exist
+                const mainMessage = message.response || message;
+                const sources = message.sources || [];
+                
+                // Add main message
+                messageDiv.innerHTML = `<p>${mainMessage}</p>`;
+                
+                // Add sources if they exist
+                if (sources.length > 0) {
+                    const sourcesHtml = sources.map(source => 
+                        `<a href="${source.url}" target="_blank" class="source-link">
+                            ${source.type === 'blog' ? '📝 Blog Post' : '🏠 Property Listing'}
+                        </a>`
+                    ).join(' • ');
+                    messageDiv.innerHTML += `<div class="mt-2 text-sm">${sourcesHtml}</div>`;
+                }
+            }
+            
+            chatContainer.insertBefore(messageDiv, document.getElementById('typingIndicator'));
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = 'block';
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            
+            if (!message) return;
+            
+            // Clear input
+            userInput.value = '';
+            
+            // Add user message to chat
+            addMessage(message, true);
+            
+            // Initialize chatbot if not already initialized
+            if (!isInitialized) {
+                showTypingIndicator();
+                await initializeChatbot();
+            }
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                const data = await response.json();
+                
+                // Hide typing indicator
+                hideTypingIndicator();
+                
+                if (data.status === 'success') {
+                    addMessage({
+                        response: data.response,
+                        sources: data.sources
+                    });
+                } else {
+                    addMessage('Sorry, I encountered an error. Please try again.');
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage('Sorry, I encountered an error. Please try again.');
+                console.error('Error sending message:', error);
+            }
+        }
+
+        // Initialize chatbot when page loads
+        window.onload = initializeChatbot;
+    </script>
+</body>
+</html> 
