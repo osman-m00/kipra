@@ -1,7 +1,7 @@
 import os
 from typing import List, Dict
 import numpy as np
-from deepseek import DeepSeek
+from deepseek_ai import DeepSeek
 import faiss
 from scrape_blogs import scrape_all_blogs
 from scrape_properties import get_property_listings
